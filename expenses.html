@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Expenses</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar">
+    <div class="wordmark">Ledger<span>.</span></div>
+    <nav class="tabs">
+      <a href="index.html">Dashboard</a>
+      <a href="expenses.html" class="active">Expenses</a>
+      <a href="expense-form.html">Add Expense</a>
+    </nav>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <h2>All expenses</h2>
+      <a class="btn" href="expense-form.html">+ Add expense</a>
+    </div>
+
+    <div class="filters">
+      <input type="text" id="search" placeholder="Search description…">
+      <select id="filter-category">
+        <option value="">All categories</option>
+      </select>
+      <select id="sort-by">
+        <option value="date-desc">Newest first</option>
+        <option value="date-asc">Oldest first</option>
+        <option value="amount-desc">Highest amount</option>
+        <option value="amount-asc">Lowest amount</option>
+      </select>
+    </div>
+
+    <div class="ledger" id="list"></div>
+  </section>
+
+</div>
+
+<script src="app.js"></script>
+<script>
+  const searchEl = document.getElementById('search');
+  const categoryEl = document.getElementById('filter-category');
+  const sortEl = document.getElementById('sort-by');
+
+  categoryEl.innerHTML += CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join('');
+
+  let allExpenses = [];
+
+  async function load() {
+    allExpenses = await getExpenses();
+    render();
+  }
+
+  function render() {
+    let list = [...allExpenses];
+
+    const q = searchEl.value.trim().toLowerCase();
+    if (q) {
+      list = list.filter((e) => e.description.toLowerCase().includes(q));
+    }
+
+    const cat = categoryEl.value;
+    if (cat) {
+      list = list.filter((e) => e.category === cat);
+    }
+
+    const sort = sortEl.value;
+    list.sort((a, b) => {
+      if (sort === 'date-desc') return a.date < b.date ? 1 : -1;
+      if (sort === 'date-asc') return a.date > b.date ? 1 : -1;
+      if (sort === 'amount-desc') return Number(b.amount) - Number(a.amount);
+      if (sort === 'amount-asc') return Number(a.amount) - Number(b.amount);
+      return 0;
+    });
+
+    const listEl = document.getElementById('list');
+    if (list.length === 0) {
+      listEl.innerHTML = '<div class="empty">No expenses match. Try clearing the search or filter.</div>';
+      return;
+    }
+
+    listEl.innerHTML = list.map((e) => `
+      <div class="ledger-row">
+        <div class="date">${formatDate(e.date)}</div>
+        <div>
+          <div class="desc">${escapeHtml(e.description)}</div>
+          <div class="cat-pill">${escapeHtml(e.category)}</div>
+        </div>
+        <div class="amount tabular">${formatCurrency(e.amount)}</div>
+        <div class="actions">
+          <a class="btn edit" href="expense-form.html?id=${encodeURIComponent(e.id)}">Edit</a>
+          <button class="btn danger" data-id="${e.id}">Delete</button>
+        </div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('button.danger').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        const exp = allExpenses.find((e) => String(e.id) === id);
+        if (exp && confirm(`Delete "${exp.description}" (${formatCurrency(exp.amount)})? This can't be undone.`)) {
+          await deleteExpense(id);
+          await load();
+        }
+      });
+    });
+  }
+
+  searchEl.addEventListener('input', render);
+  categoryEl.addEventListener('change', render);
+  sortEl.addEventListener('change', render);
+
+  load();
+</script>
+</body>
+</html>

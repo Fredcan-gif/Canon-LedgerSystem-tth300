@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Add Expense</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar">
+    <div class="wordmark">Ledger<span>.</span></div>
+    <nav class="tabs">
+      <a href="index.html">Dashboard</a>
+      <a href="expenses.html">Expenses</a>
+      <a href="expense-form.html" class="active">Add Expense</a>
+    </nav>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <h2 id="form-title">Add expense</h2>
+    </div>
+
+    <div class="form-card">
+      <form id="expense-form" novalidate>
+        <div class="field">
+          <label for="date">Date</label>
+          <input type="date" id="date" required>
+        </div>
+        <div class="field">
+          <label for="description">Description</label>
+          <input type="text" id="description" placeholder="e.g. Weekly groceries" required>
+        </div>
+        <div class="field">
+          <label for="category">Category</label>
+          <select id="category" required></select>
+        </div>
+        <div class="field">
+          <label for="amount">Amount</label>
+          <input type="number" id="amount" step="0.01" min="0" placeholder="0.00" required>
+        </div>
+        <div class="error-msg" id="error"></div>
+        <div class="form-actions">
+          <button type="submit" class="btn" id="submit-btn">Save expense</button>
+          <a class="btn secondary" href="expenses.html">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+</div>
+
+<script src="app.js"></script>
+<script type="module">
+  const params = new URLSearchParams(window.location.search);
+  const editId = params.get('id');
+
+  const categorySelect = document.getElementById('category');
+  categorySelect.innerHTML = CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join('');
+
+  const dateEl = document.getElementById('date');
+  const descEl = document.getElementById('description');
+  const amountEl = document.getElementById('amount');
+  const errorEl = document.getElementById('error');
+
+  let existing = null;
+  if (editId) {
+    existing = await getExpenseById(editId);
+    if (existing) {
+      document.getElementById('form-title').textContent = 'Edit expense';
+      document.title = 'Ledger — Edit Expense';
+      document.getElementById('submit-btn').textContent = 'Save changes';
+      dateEl.value = existing.date;
+      descEl.value = existing.description;
+      categorySelect.value = existing.category;
+      amountEl.value = existing.amount;
+    } else {
+      errorEl.textContent = 'That expense could not be found — it may have already been deleted.';
+    }
+  } else {
+    dateEl.value = new Date().toISOString().slice(0, 10);
+  }
+
+  document.getElementById('expense-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.textContent = '';
+
+    const date = dateEl.value;
+    const description = descEl.value.trim();
+    const category = categorySelect.value;
+    const amount = parseFloat(amountEl.value);
+
+    if (!date || !description || !category || isNaN(amount) || amount < 0) {
+      errorEl.textContent = 'Fill in every field with a valid amount before saving.';
+      return;
+    }
+
+    const payload = { date, description, category, amount };
+
+    try {
+      const ok = (editId && existing)
+        ? await updateExpense(editId, payload)
+        : await addExpense(payload);
+      if (!ok) throw new Error('save failed');
+    } catch (err) {
+      errorEl.textContent = 'Could not save. Is the server running?';
+      return;
+    }
+
+    window.location.href = 'expenses.html';
+  });
+</script>
+</body>
+</html>

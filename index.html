@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Dashboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar">
+    <div class="wordmark">Ledger<span>.</span></div>
+    <nav class="tabs">
+      <a href="index.html" class="active">Dashboard</a>
+      <a href="expenses.html">Expenses</a>
+      <a href="expense-form.html">Add Expense</a>
+    </nav>
+  </div>
+
+  <div class="hero">
+    <div class="hero-label" id="hero-label">Spent this month</div>
+    <div class="hero-number tabular" id="hero-total">$0.00</div>
+    <div class="hero-stats">
+      <div>
+        <div class="hero-stat-value tabular" id="stat-count">0</div>
+        <div class="hero-stat-label">Transactions</div>
+      </div>
+      <div>
+        <div class="hero-stat-value" id="stat-top-category">—</div>
+        <div class="hero-stat-label">Top category</div>
+      </div>
+      <div>
+        <div class="hero-stat-value tabular" id="stat-average">$0.00</div>
+        <div class="hero-stat-label">Average expense</div>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <h2>By category</h2>
+    </div>
+    <div id="category-breakdown"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Recent activity</h2>
+      <a class="link" href="expenses.html">View all</a>
+    </div>
+    <div class="ledger" id="recent-list"></div>
+  </section>
+
+</div>
+
+<script src="app.js"></script>
+<script>
+  async function render() {
+    const all = await getExpenses();
+
+    // This month's expenses
+    const now = new Date();
+    const thisMonth = all.filter((e) => {
+      const d = new Date(e.date + 'T00:00:00');
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+
+    const total = thisMonth.reduce((sum, e) => sum + Number(e.amount), 0);
+    document.getElementById('hero-total').textContent = formatCurrency(total);
+    document.getElementById('stat-count').textContent = thisMonth.length;
+    document.getElementById('stat-average').textContent = formatCurrency(thisMonth.length ? total / thisMonth.length : 0);
+
+    if (thisMonth.length === 0) {
+      document.getElementById('hero-label').textContent = 'No expenses logged this month';
+    }
+
+    // Category totals (all-time, so the breakdown has something to show even with sparse monthly data)
+    const byCategory = {};
+    all.forEach((e) => {
+      byCategory[e.category] = (byCategory[e.category] || 0) + Number(e.amount);
+    });
+    const catEntries = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+    const maxCat = catEntries.length ? catEntries[0][1] : 0;
+
+    document.getElementById('stat-top-category').textContent = catEntries.length ? catEntries[0][0] : '—';
+
+    const breakdownEl = document.getElementById('category-breakdown');
+    if (catEntries.length === 0) {
+      breakdownEl.innerHTML = '<div class="empty">Nothing logged yet. Add an expense to see it broken down here.</div>';
+    } else {
+      breakdownEl.innerHTML = catEntries.map(([cat, amt]) => `
+        <div class="cat-row">
+          <div class="cat-name">${escapeHtml(cat)}</div>
+          <div class="cat-track"><div class="cat-fill" style="width:${maxCat ? (amt / maxCat) * 100 : 0}%"></div></div>
+          <div class="cat-amount tabular">${formatCurrency(amt)}</div>
+        </div>
+      `).join('');
+    }
+
+    // Recent 5
+    const recent = [...all].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 5);
+    const recentEl = document.getElementById('recent-list');
+    if (recent.length === 0) {
+      recentEl.innerHTML = '<div class="empty">No expenses yet. <a class="link" href="expense-form.html">Add your first one</a>.</div>';
+    } else {
+      recentEl.innerHTML = recent.map((e) => `
+        <a class="ledger-row" href="expense-form.html?id=${encodeURIComponent(e.id)}">
+          <div class="date">${formatDate(e.date)}</div>
+          <div>
+            <div class="desc">${escapeHtml(e.description)}</div>
+            <div class="cat-pill">${escapeHtml(e.category)}</div>
+          </div>
+          <div class="amount tabular">${formatCurrency(e.amount)}</div>
+          <div></div>
+        </a>
+      `).join('');
+    }
+  }
+
+  render();
+</script>
+</body>
+</html>
